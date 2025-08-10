@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Informacijski sistem: učenci & učitelji</title>
+  <style>
+    :root{--bg:#f6f9fb;--card:#fff;--accent:#0b78d1;--muted:#566;--danger:#d1392a}
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#222}
+    .wrap{max-width:1100px;margin:24px auto;padding:18px}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:20px}
+    .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(12,20,30,0.06);margin-top:12px}
+    .grid{display:grid;gap:12px}
+    .login-box{max-width:520px;margin:20px auto}
+    label{display:block;margin:8px 0 4px;font-size:13px;color:var(--muted)}
+    input,select,button,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #d8e1ea;font-size:14px}
+    button{cursor:pointer;background:var(--accent);color:#fff;border:none}
+    nav.menu{display:flex;gap:8px;flex-wrap:wrap}
+    nav.menu button{background:#e9f3ff;color:var(--accent);padding:8px 10px;border-radius:8px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eef3f7;text-align:left}
+    .small{font-size:13px;color:var(--muted)}
+    .row{display:flex;gap:10px;align-items:center}
+    .actions{display:flex;gap:6px}
+    .danger{background:var(--danger)}
+    .muted-btn{background:#f1f5f8;color:var(--muted);border:1px solid #e2e8ef}
+    .hidden{display:none}
+    .flex{display:flex;gap:10px}
+    .right{margin-left:auto}
+    footer{margin-top:18px;font-size:13px;color:var(--muted)}
+    .notice{background:#fff8df;padding:10px;border-radius:8px}
+    .search{max-width:300px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Informacijski sistem za komunikacijo učencev z učitelji</h1>
+      <div class="small">Podatki se shranijo lokalno (localStorage)</div>
+    </header>
+
+    <main class="card grid">
+      <!-- LOGIN / REGISTER -->
+      <div id="auth-screen">
+        <div class="login-box card">
+          <h2>Prijava</h2>
+          <div class="small">Uporabniško ime in geslo. Privzeti administrator: <strong>ADMIN / ADMIN</strong></div>
+          <label for="login-user">Uporabniško ime</label>
+          <input id="login-user" autocomplete="username" />
+          <label for="login-pass">Geslo</label>
+          <input id="login-pass" type="password" autocomplete="current-password" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="btn-login">Prijavi se</button>
+            <button id="btn-show-register" class="muted-btn">Registracija</button>
+          </div>
+        </div>
+
+        <div id="register-box" class="login-box card hidden">
+          <h2>Registracija</h2>
+          <div class="small">Polja ne smejo biti prazna. Sistem samodejno <strong>odobri</strong> prijavo, če so podatki pravilni.</div>
+          <label>Vloga</label>
+          <select id="reg-role">
+            <option value="ucenec">Učenec</option>
+            <option value="ucitelj">Učitelj</option>
+          </select>
+          <label>Ime in priimek</label>
+          <input id="reg-name" />
+          <label>Uporabniško ime</label>
+          <input id="reg-username" />
+          <label>Geslo</label>
+          <input id="reg-password" type="password" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="btn-register">Pošlji prijavo</button>
+            <button id="btn-cancel-register" class="muted-btn">Prekliči</button>
+          </div>
+          <div id="reg-result" class="small" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- APP SCREEN -->
+      <div id="app-screen" class="hidden">
+        <div class="row">
+          <div id="user-welcome" class="small"></div>
+          <div class="right row">
+            <div id="current-role" class="small"></div>
+            <button id="btn-logout" class="muted-btn">Odjava</button>
+          </div>
+        </div>
+
+        <!-- Admin menu -->
+        <div id="admin-menu" class="card hidden">
+          <nav class="menu">
+            <button data-admin-tab="ucitelji">UČITELJI</button>
+            <button data-admin-tab="ucenci">UČENCI</button>
+            <button data-admin-tab="razredi">RAZREDI</button>
+            <button data-admin-tab="prijavni">PRIJAVNI PODATKI</button>
+          </nav>
+
+          <div id="admin-content" style="margin-top:12px"></div>
+        </div>
+
+        <!-- Teacher menu -->
+        <div id="teacher-menu" class="card hidden">
+          <nav class="menu">
+            <button data-teacher-tab="vpis">VPIŠI OCENJEVANJE</button>
+            <button data-teacher-tab="ocene">OCENE</button>
+            <button data-teacher-tab="uredi">SPREMENI OCENO</button>
+            <button data-teacher-tab="geslo">SPREMENI GESLO</button>
+          </nav>
+          <div id="teacher-content" style="margin-top:12px"></div>
+        </div>
+
+        <!-- Student menu -->
+        <div id="student-menu" class="card hidden">
+          <nav class="menu">
+            <button data-student-tab="ocenjevanje">OCENJEVANJE</button>
+            <button data-student-tab="ocene">OCENE</button>
+            <button data-student-tab="geslo">SPREMENI GESLO</button>
+          </nav>
+          <div id="student-content" style="margin-top:12px"></div>
+        </div>
+
+      </div>
+
+      <footer class="small">Opomba: vsi podatki se hranijo v vašem brskalniku (localStorage). Za prenos 'PDF' kliknite na gumb natisni v prijavnih podatkih - odpre se stran, ki jo lahko shranite kot PDF.</footer>
+    </main>
+  </div>
+
+  <script>
+    // ---------- Helper: Persistent storage structure ----------
+    const LS = {
+      usersKey: 'sis_users_v1', // stores array of users {username,password,role,name}
+      teachersKey: 'sis_teachers_v1', // array {username,name,password,assignedClass}
+      studentsKey: 'sis_students_v1', // array {username,name,password}
+      classesKey: 'sis_classes_v1', // array {id,name,students:[] ,teacherUsername}
+      evaluationsKey: 'sis_evals_v1' // array of {classId,studentUsername,percent,grade,locked}
+    }
+
+    // ensure default admin exists
+    function loadJSON(key, defaultVal){
+      try{ const raw = localStorage.getItem(key); return raw? JSON.parse(raw): defaultVal }
+      catch(e){ console.error('load',e); return defaultVal }
+    }
+    function saveJSON(key,obj){ localStorage.setItem(key, JSON.stringify(obj)) }
+
+    let users = loadJSON(LS.usersKey, []);
+    let teachers = loadJSON(LS.teachersKey, []);
+    let students = loadJSON(LS.studentsKey, []);
+    let classes = loadJSON(LS.classesKey, []);
+    let evaluations = loadJSON(LS.evaluationsKey, []);
+
+    // create admin if missing
+    if(!users.find(u=>u.username==='ADMIN')){
+      users.push({username:'ADMIN',password:'ADMIN',role:'admin',name:'Administrator'})
+      saveAll();
+    }
+
+    function saveAll(){
+      saveJSON(LS.usersKey,users);
+      saveJSON(LS.teachersKey,teachers);
+      saveJSON(LS.studentsKey,students);
+      saveJSON(LS.classesKey,classes);
+      saveJSON(LS.evaluationsKey,evaluations);
+    }
+
+    // Current session
+    let currentUser = null;
+
+    // ---------- UI bindings ----------
+    const $ = id=>document.getElementById(id);
+    const qAll = sel=>document.querySelectorAll(sel);
+
+    // Auth
+    $('btn-show-register').addEventListener('click',()=>{ $('register-box').classList.remove('hidden') })
+    $('btn-cancel-register').addEventListener('click',()=>{ $('register-box').classList.add('hidden'); $('reg-result').textContent=''; })
+
+    $('btn-register').addEventListener('click',()=>{
+      const role = $('reg-role').value;
+      const name = $('reg-name').value.trim();
+      const username = $('reg-username').value.trim();
+      const password = $('reg-password').value;
+      const out = $('reg-result');
+      out.style.color='';
+
+      // validation: all fields required, username unique
+      if(!name || !username || !password){ out.textContent='NAPAKA: Vsa polja so obvezna.'; out.style.color='red'; return }
+      if(users.find(u=>u.username===username)){ out.textContent='NAPAKA: Uporabniško ime že obstaja.'; out.style.color='red'; return }
+
+      // if role student/teacher, register as user and into respective list
+      const userObj = {username, password, role: role==='ucenec'?'student':'teacher', name};
+      users.push(userObj);
+      if(role==='ucenec'){
+        students.push({username,name,password});
+      } else {
+        teachers.push({username,name,password,assignedClass:null});
+      }
+      saveAll();
+      out.textContent='Prijava je bila ODOBRENA in uporabnik je ustvarjen.'; out.style.color='green';
+      setTimeout(()=>{
+        $('register-box').classList.add('hidden'); out.textContent=''; $('reg-name').value=''; $('reg-username').value=''; $('reg-password').value='';
+      },900);
+    })
+
+    // Login
+    $('btn-login').addEventListener('click',()=>{
+      const username = $('login-user').value.trim();
+      const password = $('login-pass').value;
+      const user = users.find(u=>u.username===username && u.password===password);
+      if(!user){ alert('Prijava ni uspela. Preverite uporabniško ime/geslo.'); return }
+      currentUser = user;
+      afterLogin();
+    })
+
+    $('btn-logout').addEventListener('click',()=>{ currentUser=null; showAuth(); })
+
+    function showAuth(){
+      $('auth-screen').classList.remove('hidden');
+      $('app-screen').classList.add('hidden');
+      $('register-box').classList.add('hidden');
+      $('login-user').value=''; $('login-pass').value='';
+      // hide all menus
+      hideAllMenus();
+    }
+
+    function hideAllMenus(){
+      $('admin-menu').classList.add('hidden');
+      $('teacher-menu').classList.add('hidden');
+      $('student-menu').classList.add('hidden');
+    }
+
+    function afterLogin(){
+      $('auth-screen').classList.add('hidden');
+      $('app-screen').classList.remove('hidden');
+      $('user-welcome').innerHTML=`Pozdravljeni, <strong>${currentUser.name}</strong> (<span class="small">${currentUser.username}</span>)`;
+      $('current-role').textContent = currentUser.role.toUpperCase();
+      // show role-specific menu
+      hideAllMenus();
+      if(currentUser.role==='admin'){
+        $('admin-menu').classList.remove('hidden');
+        renderAdminTab('ucitelji');
+      } else if(currentUser.role==='teacher'){
+        $('teacher-menu').classList.remove('hidden');
+        renderTeacherTab('vpis');
+      } else {
+        $('student-menu').classList.remove('hidden');
+        renderStudentTab('ocenjevanje');
+      }
+    }
+
+    // ---------- Admin: tabs and actions ----------
+    document.querySelectorAll('[data-admin-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+      renderAdminTab(btn.dataset.adminTab);
+    }))
+
+    function renderAdminTab(tab){
+      const host = $('admin-content'); host.innerHTML='';
+      if(tab==='ucitelji'){
+        host.innerHTML = `
+          <h3>UČITELJI</h3>
+          <div class="small">Dodaj, urejaj ali izbriši učitelje</div>
+          <div style="margin-top:8px" id="teachers-area"></div>
+        `;
+        renderTeachersArea();
+      }
+      else if(tab==='ucenci'){
+        host.innerHTML=`
+          <h3>UČENCI</h3>
+          <div class="small">Dodaj, urejaj ali izbriši učence</div>
+          <div style="margin-top:8px" id="students-area"></div>
+        `;
+        renderStudentsArea();
+      }
+      else if(tab==='razredi'){
+        host.innerHTML=`
+          <h3>RAZREDI</h3>
+          <div class="small">Ustvarjajte razrede in dodajte obstoječe učence vanje</div>
+          <div style="margin-top:8px" id="classes-area"></div>
+        `;
+        renderClassesArea();
+      }
+      else if(tab==='prijavni'){
+        host.innerHTML=`
+          <h3>PRIJAVNI PODATKI</h3>
+          <div class="small">Oglejte si prijavne podatke uporabnikov, spremenite gesla ali prenesite (natisnite) PDF z izbranimi podatki</div>
+          <div style="margin-top:8px" id="login-data-area"></div>
+        `;
+        renderLoginDataArea();
+      }
+    }
+
+    function renderTeachersArea(){
+      const area = $('teachers-area');
+      area.innerHTML='';
+      const form = document.createElement('div'); form.className='card';
+      form.innerHTML = `
+        <label>Ime in priimek učitelja</label><input id="t-name" />
+        <label>Uporabniško ime</label><input id="t-username" />
+        <label>Geslo</label><input id="t-pass" type="password" />
+        <label>Razred (opcijsko - izberi že obstoječ razred)</label>
+        <select id="t-class"><option value="">-- brez --</option></select>
+        <div style="display:flex;gap:8px;margin-top:8px"><button id="t-add">Dodaj učitelja</button><button id="t-reset" class="muted-btn">Počisti</button></div>
+      `;
+      area.appendChild(form);
+      // populate classes
+      const sel = form.querySelector('#t-class'); sel.innerHTML = '<option value="">-- brez --</option>' + classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+      form.querySelector('#t-add').addEventListener('click',()=>{
+        const name=form.querySelector('#t-name').value.trim(); const username=form.querySelector('#t-username').value.trim(); const pass=form.querySelector('#t-pass').value; const classId=form.querySelector('#t-class').value||null;
+        if(!name||!username||!pass){ alert('Vsa polja so obvezna (razen razred).'); return }
+        if(users.find(u=>u.username===username)){ alert('Uporabniško ime že obstaja.'); return }
+        users.push({username, password:pass, role:'teacher', name});
+        teachers.push({username,name,password:pass,assignedClass:classId});
+        if(classId){ const c = classes.find(x=>x.id===classId); if(c) c.teacherUsername=username }
+        saveAll(); renderTeachersArea();
+      })
+
+      // list
+      const tbl = document.createElement('div'); tbl.style.marginTop='12px';
+      tbl.innerHTML = `<table><thead><tr><th>Ime</th><th>Uporabnško</th><th>Razred</th><th>Akcije</th></tr></thead><tbody>${teachers.map(t=>`<tr data-u="${t.username}"><td>${t.name}</td><td>${t.username}</td><td>${t.assignedClass? (classes.find(c=>c.id===t.assignedClass)?.name||'') : ''}</td><td class="actions"><button class="edit">Uredi</button><button class="del danger">Izbriši</button></td></tr>`).join('')}</tbody></table>`;
+      area.appendChild(tbl);
+
+      // attach row handlers
+      tbl.querySelectorAll('button.edit').forEach(b=>{
+        b.addEventListener('click',()=>{
+          const row = b.closest('tr'); const uname=row.dataset.u; const t=teachers.find(x=>x.username===uname);
+          const name=prompt('Ime in priimek:', t.name); if(name==null) return; const pass=prompt('Geslo:', t.password); if(pass==null) return;
+          t.name=name; t.password=pass; const u = users.find(u=>u.username===uname); if(u){ u.name=name; u.password=pass }
+          saveAll(); renderTeachersArea();
+        })
+      })
+      tbl.querySelectorAll('button.del').forEach(b=>{
+        b.addEventListener('click',()=>{
+          const row=b.closest('tr'); const uname=row.dataset.u; if(!confirm('Res želite izbrisati učitelja in njegove podatke?')) return;
+          teachers = teachers.filter(x=>x.username!==uname); users = users.filter(u=>u.username!==uname);
+          // unassign any class
+          classes.forEach(c=>{ if(c.teacherUsername===uname) c.teacherUsername=null });
+          saveAll(); renderTeachersArea();
+        })
+      })
+    }
+
+    function renderStudentsArea(){
+      const area = $('students-area'); area.innerHTML='';
+      const form = document.createElement('div'); form.className='card';
+      form.innerHTML = `
+        <label>Ime in priimek učenca</label><input id="s-name" />
+        <label>Uporabniško ime</label><input id="s-username" />
+        <label>Geslo</label><input id="s-pass" type="password" />
+        <div style="display:flex;gap:8px;margin-top:8px"><button id="s-add">Dodaj učenca</button><button id="s-reset" class="muted-btn">Počisti</button></div>
+      `;
+      area.appendChild(form);
+      form.querySelector('#s-add').addEventListener('click',()=>{
+        const name=form.querySelector('#s-name').value.trim(); const username=form.querySelector('#s-username').value.trim(); const pass=form.querySelector('#s-pass').value;
+        if(!name||!username||!pass){ alert('Vsa polja so obvezna.'); return }
+        if(users.find(u=>u.username===username)){ alert('Uporabniško ime že obstaja.'); return }
+        users.push({username,password:pass,role:'student',name});
+        students.push({username,name,password:pass});
+        saveAll(); renderStudentsArea();
+      })
+
+      const tbl = document.createElement('div'); tbl.style.marginTop='12px';
+      tbl.innerHTML=`<table><thead><tr><th>Ime</th><th>Uporabnško</th><th>Akcije</th></tr></thead><tbody>${students.map(s=>`<tr data-u="${s.username}"><td>${s.name}</td><td>${s.username}</td><td class="actions"><button class="edit">Uredi</button><button class="del danger">Izbriši</button></td></tr>`).join('')}</tbody></table>`;
+      area.appendChild(tbl);
+      tbl.querySelectorAll('button.edit').forEach(b=>{
+        b.addEventListener('click',()=>{
+          const uname=b.closest('tr').dataset.u; const s=students.find(x=>x.username===uname);
+          const name=prompt('Ime in priimek:', s.name); if(name==null) return; const pass=prompt('Geslo:', s.password); if(pass==null) return;
+          s.name=name; s.password=pass; const u=users.find(u=>u.username===uname); if(u){ u.name=name; u.password=pass }
+          saveAll(); renderStudentsArea();
+        })
+      })
+      tbl.querySelectorAll('button.del').forEach(b=>{
+        b.addEventListener('click',()=>{
+          const uname=b.closest('tr').dataset.u; if(!confirm('Res želite izbrisati učenca?')) return;
+          students = students.filter(x=>x.username!==uname); users = users.filter(u=>u.username!==uname);
+          // remove student from any class
+          classes.forEach(c=>{ c.students = c.students.filter(s=>s!==uname) })
+          // remove evaluations
+          evaluations = evaluations.filter(e=>e.studentUsername!==uname)
+          saveAll(); renderStudentsArea();
+        })
+      })
+    }
+
+    function renderClassesArea(){
+      const area = $('classes-area'); area.innerHTML='';
+      const form = document.createElement('div'); form.className='card';
+      form.innerHTML = `
+        <label>Ime razreda (npr. 9A)</label><input id="c-name" />
+        <label>Izberi učence, ki jih želite dodati</label><div id="c-choices" style="max-height:160px;overflow:auto;border:1px solid #eef;padding:8px;border-radius:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:8px"><button id="c-add">Ustvari razred</button><button id="c-reset" class="muted-btn">Počisti</button></div>
+      `;
+      area.appendChild(form);
+      const choices = form.querySelector('#c-choices'); choices.innerHTML = students.map(s=>`<label style="display:block"><input type="checkbox" value="${s.username}" /> ${s.name} (${s.username})</label>`).join('') || '<div class="small">Ni učencev v sistemu</div>';
+      form.querySelector('#c-add').addEventListener('click',()=>{
+        const name=form.querySelector('#c-name').value.trim(); if(!name){ alert('Vnesite ime razreda.'); return }
+        const selected = Array.from(choices.querySelectorAll('input:checked')).map(i=>i.value);
+        const id='class_'+Math.random().toString(36).slice(2,9);
+        classes.push({id,name,students:selected,teacherUsername:null}); saveAll(); renderClassesArea();
+      })
+
+      // list classes
+      const tbl = document.createElement('div'); tbl.style.marginTop='12px';
+      tbl.innerHTML = `<table><thead><tr><th>Razred</th><th>Učenci (št.)</th><th>Učitelj</th><th>Akcije</th></tr></thead><tbody>${classes.map(c=>`<tr data-id="${c.id}"><td>${c.name}</td><td>${c.students.length}</td><td>${c.teacherUsername||''}</td><td class="actions"><button class="edit">Uredi</button><button class="del danger">Izbriši</button></td></tr>`).join('')}</tbody></table>`;
+      area.appendChild(tbl);
+
+      tbl.querySelectorAll('button.edit').forEach(b=>{
+        b.addEventListener('click',()=>{
+          const id=b.closest('tr').dataset.id; const c=classes.find(x=>x.id===id);
+          const name=prompt('Ime razreda:', c.name); if(name==null) return;
+          // manage students via multi-select prompt (simple)
+          const studentList = prompt('Vnesite uporabniška imena učencev ločena z vejico:', c.students.join(',')); if(studentList==null) return;
+          c.name=name; c.students = studentList.split(',').map(s=>s.trim()).filter(Boolean);
+          saveAll(); renderClassesArea();
+        })
+      })
+      tbl.querySelectorAll('button.del').forEach(b=>{
+        b.addEventListener('click',()=>{
+          const id=b.closest('tr').dataset.id; if(!confirm('Izbriši razred?')) return; classes = classes.filter(x=>x.id!==id); evaluations = evaluations.filter(e=>e.classId!==id); saveAll(); renderClassesArea();
+        })
+      })
+    }
+
+    function renderLoginDataArea(){
+      const area = $('login-data-area'); area.innerHTML='';
+      let html = `<div class="small">Seznam registriranih uporabnikov</div><table style="margin-top:8px"><thead><tr><th>Ime</th><th>Uporabnško</th><th>Vloga</th><th>Akcije</th></tr></thead><tbody>`;
+      html += users.map(u=>`<tr data-u="${u.username}"><td>${u.name}</td><td>${u.username}</td><td>${u.role}</td><td class="actions"><button class="show">Prikaži</button><button class="print">Natisni</button></td></tr>`).join('');
+      html += '</tbody></table>';
+      area.innerHTML = html;
+      area.querySelectorAll('button.show').forEach(b=>b.addEventListener('click',()=>{
+        const uname=b.closest('tr').dataset.u; const u = users.find(x=>x.username===uname); alert(`Uporabnik: ${u.name}\nUporabniško ime: ${u.username}\nVloga: ${u.role}\nGeslo: ${u.password}`)
+      }))
+      area.querySelectorAll('button.print').forEach(b=>b.addEventListener('click',()=>{
+        const uname=b.closest('tr').dataset.u; const u = users.find(x=>x.username===uname);
+        // open printable window
+        const w = window.open('','_blank');
+        w.document.write(`<html><head><title>Prijavni podatki ${u.username}</title><style>body{font-family:Arial;padding:20px}</style></head><body><h2>Prijavni podatki</h2><p><strong>Ime:</strong> ${u.name}</p><p><strong>Uporabniško ime:</strong> ${u.username}</p><p><strong>Vloga:</strong> ${u.role}</p><p><strong>Geslo:</strong> ${u.password}</p><p>Generirano: ${new Date().toLocaleString()}</p></body></html>`);
+        w.document.close(); w.print();
+      }))
+    }
+
+    // ---------- Teacher: tabs and actions ----------
+    document.querySelectorAll('[data-teacher-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+      renderTeacherTab(btn.dataset.teacherTab);
+    }))
+
+    function renderTeacherTab(tab){
+      const host = $('teacher-content'); host.innerHTML='';
+      // find teacher record
+      const teacherRec = teachers.find(t=>t.username===currentUser.username);
+      const assignedClassId = teacherRec?.assignedClass;
+
+      if(tab==='vpis'){
+        host.innerHTML = `<h3>VPIŠI OCENJEVANJE</h3><div class="small">Izpolnite procente in ocene za učence iz vašega razreda.</div><div id="vpis-area" style="margin-top:8px"></div>`;
+        renderVpisArea(assignedClassId);
+      }
+      else if(tab==='ocene'){
+        host.innerHTML = `<h3>OCENE</h3><div id="grades-area" style="margin-top:8px"></div>`;
+        renderGradesArea(assignedClassId);
+      }
+      else if(tab==='uredi'){
+        host.innerHTML = `<h3>SPREMENI OCENO</h3><div id="edit-area" style="margin-top:8px"></div>`;
+        renderEditGradeArea(assignedClassId);
+      }
+      else if(tab==='geslo'){
+        host.innerHTML = `<h3>SPREMENI GESLO</h3><label>Novo geslo</label><input id="t-newpass" type="password" /><div style="margin-top:8px"><button id="t-savepass">Shrani</button></div>`;
+        host.querySelector('#t-savepass').addEventListener('click',()=>{
+          const p = host.querySelector('#t-newpass').value; if(!p){ alert('Vnesite geslo.'); return }
+          // update teacher and users
+          const t = teachers.find(x=>x.username===currentUser.username); t.password=p; const u = users.find(u=>u.username===currentUser.username); if(u) u.password=p; saveAll(); alert('Geslo posodobljeno.');
+        })
+      }
+    }
+
+    function renderVpisArea(classId){
+      const area = $('vpis-area'); area.innerHTML='';
+      if(!classId){ area.innerHTML='<div class="notice">Niste dodeljeni nobenemu razredu. Administrator naj vas dodeli razredu.</div>'; return }
+      const c = classes.find(x=>x.id===classId); if(!c){ area.innerHTML='<div class="notice">Razred ne obstaja.</div>'; return }
+      // build table of students in class
+      const rows = c.students.map(su=>{
+        const s = students.find(x=>x.username===su) || {name:su,username:su};
+        // find existing evaluation (in-progress)
+        const ev = evaluations.find(e=>e.classId===classId && e.studentUsername===su && !e.locked);
+        return {username:su,name:s.name,percent: ev? ev.percent : '', grade: ev? ev.grade : ''}
+      })
+      if(rows.length===0){ area.innerHTML='<div class="small">V razredu ni učencev.</div>'; return }
+      const tbl = document.createElement('div'); tbl.innerHTML = `<table><thead><tr><th>Učenec</th><th>Procenti</th><th>Ocena</th></tr></thead><tbody>${rows.map(r=>`<tr data-u="${r.username}"><td>${r.name}</td><td><input class="inp-percent" value="${r.percent}" /></td><td><input class="inp-grade" value="${r.grade}" /></td></tr>`).join('')}</tbody></table><div style="display:flex;gap:8px;margin-top:8px"><button id="vpis-save">Shrani in pošlji učencu</button><button id="vpis-reset" class="muted-btn">PONASTAVI</button></div>`;
+      area.appendChild(tbl);
+      tbl.querySelector('#vpis-save').addEventListener('click',()=>{
+        // save all rows as locked grade entries
+        const trs = tbl.querySelectorAll('tbody tr'); trs.forEach(tr=>{
+          const uname = tr.dataset.u; const percent = tr.querySelector('.inp-percent').value.trim(); const grade = tr.querySelector('.inp-grade').value.trim();
+          // if no record exists locked, create/overwrite
+          let ev = evaluations.find(e=>e.classId===classId && e.studentUsername===uname && e.locked);
+          if(!ev){ ev = evaluations.find(e=>e.classId===classId && e.studentUsername===uname && !e.locked); }
+          if(ev){ ev.percent = percent; ev.grade = grade; ev.locked = true; }
+          else { evaluations.push({classId, studentUsername:uname, percent, grade, locked:true}); }
+        })
+        saveAll(); alert('Ocene so shranjene in poslane.'); renderVpisArea(classId); renderGradesArea(classId);
+      })
+
+      tbl.querySelector('#vpis-reset').addEventListener('click',()=>{
+        if(!confirm('Ponastavi vnešene (še ne zaklenjene) podatke ocenjevanja?')) return;
+        // remove any evaluations for this class that are not locked
+        evaluations = evaluations.filter(e=> !(e.classId===classId && !e.locked)); saveAll(); renderVpisArea(classId);
+      })
+    }
+
+    function renderGradesArea(classId){
+      const area = $('grades-area'); if(!area) return; area.innerHTML='';
+      if(!classId){ area.innerHTML='<div class="notice">Niste dodeljeni razredu.</div>'; return }
+      const c = classes.find(x=>x.id===classId); if(!c){ area.innerHTML='<div class="notice">Razred ne obstaja.</div>'; return }
+      // list locked evaluations
+      const rows = evaluations.filter(e=>e.classId===classId && e.locked).map(e=>({...e,name:(students.find(s=>s.username===e.studentUsername)?.name||e.studentUsername)}));
+      if(rows.length===0){ area.innerHTML='<div class="small">Za ta razred še ni shranjenih ocen.</div>'; return }
+      area.innerHTML = `<table><thead><tr><th>Učenec</th><th>Ocena</th><th>Procenti</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.name}</td><td>${r.grade}</td><td>${r.percent}</td></tr>`).join('')}</tbody></table>`;
+    }
+
+    function renderEditGradeArea(classId){
+      const area = $('edit-area'); area.innerHTML='';
+      if(!classId){ area.innerHTML='<div class="notice">Niste dodeljeni razredu.</div>'; return }
+      const c = classes.find(x=>x.id===classId); if(!c){ area.innerHTML='<div class="notice">Razred ne obstaja.</div>'; return }
+      // list all evaluations for the class
+      const rows = evaluations.filter(e=>e.classId===classId).map(e=>({...e,name:(students.find(s=>s.username===e.studentUsername)?.name||e.studentUsername)}));
+      area.innerHTML = `<div class="small">Urejanje ocen (dodaj, urejaj, briši)</div><div style="margin-top:8px" id="edit-list"></div><div style="margin-top:8px"><button id="add-manual">Dodaj novo oceno</button></div>`;
+      const list = area.querySelector('#edit-list');
+      function refreshList(){
+        list.innerHTML = `<table><thead><tr><th>Učenec</th><th>Ocena</th><th>Procent</th><th>Zaklenjeno</th><th>Akcije</th></tr></thead><tbody>${rows.map(r=>`<tr data-s="${r.studentUsername}"><td>${r.name}</td><td>${r.grade||''}</td><td>${r.percent||''}</td><td>${r.locked? 'DA':'NE'}</td><td class="actions"><button class="edit">Uredi</button><button class="del danger">Izbriši</button></td></tr>`).join('')}</tbody></table>`;
+      }
+      refreshList();
+      // delegate actions
+      list.addEventListener('click',e=>{
+        if(e.target.classList.contains('edit')){
+          const uname = e.target.closest('tr').dataset.s; const ev = evaluations.find(x=>x.classId===classId && x.studentUsername===uname);
+          const newPercent = prompt('Procenti:', ev.percent||''); if(newPercent==null) return; const newGrade = prompt('Ocena:', ev.grade||''); if(newGrade==null) return; const lock = confirm('Naj bo ocena zaklenjena (DA = zaklenjena)?'); ev.percent=newPercent; ev.grade=newGrade; ev.locked = lock; saveAll(); renderEditGradeArea(classId);
+        }
+        if(e.target.classList.contains('del')){
+          const uname = e.target.closest('tr').dataset.s; if(!confirm('Izbriši to oceno?')) return; evaluations = evaluations.filter(x=>!(x.classId===classId && x.studentUsername===uname)); saveAll(); renderEditGradeArea(classId);
+        }
+      })
+      area.querySelector('#add-manual').addEventListener('click',()=>{
+        const uname = prompt('Vnesite uporabniško ime učenca:'); if(!uname) return; const percent=prompt('Procenti:',''); const grade=prompt('Ocena:',''); const lock=confirm('Zakleni oceno?'); evaluations.push({classId,studentUsername:uname,percent,grade,locked:!!lock}); saveAll(); renderEditGradeArea(classId);
+      })
+    }
+
+    // ---------- Student: tabs ----------
+    document.querySelectorAll('[data-student-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+      renderStudentTab(btn.dataset.studentTab);
+    }))
+
+    function renderStudentTab(tab){
+      const host = $('student-content'); host.innerHTML='';
+      const uname = currentUser.username;
+      // find class of student
+      const klass = classes.find(c=>c.students.includes(uname));
+      if(tab==='ocenjevanje'){
+        host.innerHTML = `<h3>OCENJEVANJE</h3><div id="stu-ov" style="margin-top:8px"></div>`;
+        const area = $('stu-ov');
+        if(!klass){ area.innerHTML='<div class="small">Nimate razreda ali še ni podatkov.</div>'; return }
+        // find latest locked evaluation for this student in that class
+        const ev = evaluations.find(e=>e.classId===klass.id && e.studentUsername===uname && e.locked);
+        if(!ev){ area.innerHTML='<div class="small">Podatkov še ni (učitelj jih še ni vnesel).</div>'; return }
+        area.innerHTML = `<table><thead><tr><th>Razred</th><th>Procenti</th><th>Ocena</th></tr></thead><tbody><tr><td>${klass.name}</td><td>${ev.percent}</td><td>${ev.grade}</td></tr></tbody></table>`;
+      }
+      else if(tab==='ocene'){
+        host.innerHTML = `<h3>OCENE</h3><div id="stu-grades" style="margin-top:8px"></div>`;
+        const area = $('stu-grades');
+        const rows = evaluations.filter(e=>e.studentUsername===uname && e.locked).map(e=>({className: classes.find(c=>c.id===e.classId)?.name||e.classId, grade:e.grade, percent:e.percent}));
+        if(rows.length===0){ area.innerHTML='<div class="small">Nimate še shranjenih ocen.</div>'; return }
+        area.innerHTML = `<table><thead><tr><th>Razred</th><th>Ocena</th><th>Procent</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.className}</td><td>${r.grade}</td><td>${r.percent}</td></tr>`).join('')}</tbody></table>`;
+      }
+      else if(tab==='geslo'){
+        host.innerHTML = `<h3>SPREMENI GESLO</h3><label>Novo geslo</label><input id="s-newpass" type="password" /><div style="margin-top:8px"><button id="s-savepass">Shrani</button></div>`;
+        host.querySelector('#s-savepass').addEventListener('click',()=>{
+          const p = host.querySelector('#s-newpass').value; if(!p){ alert('Vnesite geslo.'); return }
+          const s = students.find(x=>x.username===currentUser.username); if(s) s.password=p; const u = users.find(u=>u.username===currentUser.username); if(u) u.password=p; saveAll(); alert('Geslo spremenjeno.');
+        })
+      }
+    }
+
+    // ---------- Init: admin buttons are dynamic ----------
+    // When admin menu buttons clicked - events bound above
+
+    // ---------- Utility: update teacher assignments if admin changed classes ----------
+    // Keep teacher.assignedClass synced to class.teacherUsername
+    function syncTeacherAssignments(){
+      classes.forEach(c=>{
+        if(c.teacherUsername){ const t = teachers.find(x=>x.username===c.teacherUsername); if(t) t.assignedClass=c.id; }
+      })
+      teachers.forEach(t=>{
+        if(t.assignedClass){ const c = classes.find(x=>x.id===t.assignedClass); if(c) c.teacherUsername = t.username }
+      })
+      saveAll();
+    }
+
+    // Run initial sync
+    syncTeacherAssignments();
+
+    // Default: show auth screen
+    showAuth();
+
+    // Expose saveAll for console (debug)
+    window._sis = {users,teachers,students,classes,evaluations,saveAll}
+
+  </script>
+</body>
+</html>
