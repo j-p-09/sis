@@ -1,1 +1,901 @@
-Wait
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Informacijski sistem: učenci ↔ učitelji</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#fff; --accent:#1f6feb; --muted:#666;
+  }
+  body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Helvetica,Arial; background:var(--bg); margin:0; padding:20px; color:#111;}
+  .wrap{max-width:1100px;margin:0 auto;}
+  header{display:flex;align-items:center;gap:16px;margin-bottom:18px;}
+  header h1{margin:0;font-size:20px;}
+  .card{background:var(--card);border-radius:12px;box-shadow:0 6px 22px rgba(19,24,30,0.05);padding:18px;}
+  .login{max-width:420px;margin:40px auto;padding:18px;}
+  label{display:block;font-size:13px;margin-top:10px;color:var(--muted)}
+  input, select{width:100%;padding:8px;border-radius:8px;border:1px solid #e3e8f0;margin-top:6px;font-size:14px}
+  button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .muted{color:var(--muted);font-size:13px}
+  nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .tab-btn{background:#eef5ff;padding:8px 10px;border-radius:8px;border:1px solid #d6e8ff;cursor:pointer}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+  th{background:#fafcff;font-weight:600}
+  .row-actions button{margin-right:6px}
+  .two{display:grid;grid-template-columns:1fr 320px;gap:16px}
+  .small{font-size:13px;color:var(--muted)}
+  .danger{background:#ff5c5c}
+  .success{background:#2ea44f}
+  .secondary{background:#e6eefc;color:#0f3b82}
+  .inline{display:inline-block}
+  .center{text-align:center}
+  footer{margin-top:22px;color:var(--muted);font-size:13px}
+  .flex{display:flex;gap:8px;align-items:center}
+  .list{max-height:240px;overflow:auto;padding-right:6px}
+  .search{display:flex;gap:8px;margin-top:6px}
+  .small-btn{padding:6px 8px;border-radius:6px;background:#f0f4ff;border:1px solid #e1ecff;cursor:pointer}
+  .file-row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  hr{border:none;border-top:1px solid #eef2fb;margin:12px 0}
+  .notice{background:#fff6db;padding:10px;border-radius:8px;border:1px solid #f0e4b9}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="card">
+    <h1>Informacijski sistem — učenci ↔ učitelji</h1>
+    <div style="margin-left:auto" class="small muted">Shranjuje v <code>localStorage</code>. Odpri v brskalniku.</div>
+  </header>
+
+  <main id="main-area" class="card">
+    <!-- LOGIN -->
+    <div id="login-screen" class="login">
+      <h2>Prijava</h2>
+      <div class="small muted">Uporabniško ime in geslo.</div>
+      <label>Uporabniško ime<input id="login-username" /></label>
+      <label>Geslo<input id="login-password" type="password" /></label>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="btn-login">Prijava</button>
+        <button id="btn-demo" class="secondary">Naloži demo podatke</button>
+        <button id="btn-reset-local" class="small-btn">Počisti vse podatke</button>
+      </div>
+      <div id="login-message" class="small muted" style="margin-top:12px"></div>
+
+      <hr/>
+      <div class="small muted">Opomba: privzeto ADMIN / ADMIN. Demo podatki ustvarijo enega učitelja in dva učenca.</div>
+    </div>
+
+    <!-- APP -->
+    <div id="app-screen" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div><strong id="app-role">Vloga:</strong> <span id="app-user"></span></div>
+        <div style="margin-left:auto" class="flex">
+          <button id="btn-logout" class="small-btn">Odjava</button>
+        </div>
+      </div>
+
+      <hr/>
+
+      <!-- ADMIN MENU -->
+      <div id="admin-area" style="display:none">
+        <nav id="admin-nav"></nav>
+        <section id="admin-content" style="margin-top:12px"></section>
+      </div>
+
+      <!-- TEACHER MENU -->
+      <div id="teacher-area" style="display:none">
+        <nav id="teacher-nav"></nav>
+        <section id="teacher-content" style="margin-top:12px"></section>
+      </div>
+
+      <!-- STUDENT MENU -->
+      <div id="student-area" style="display:none">
+        <nav id="student-nav"></nav>
+        <section id="student-content" style="margin-top:12px"></section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="small muted center card" style="margin-top:12px">
+    Če želiš navodila ali spremembo, povej. Koda je brez strežniške strani — vse je v brskalniku (localStorage).
+  </footer>
+</div>
+
+<script>
+/*
+  Enostaven sistem v localStorage.
+  Strukture:
+  - users: { id, username, password, role: 'admin'|'teacher'|'student', fullname, classId? }
+  - classes: { id, name, teacherId, studentIds: [] }
+  - grades: array of { id, studentId, teacherId, classId, gradeNumber, percent, note, date }
+  - assessmentDrafts: { [classId]: { studentId: { percent, grade } } }  // temp until 'send'
+*/
+
+const LS_KEYS = {
+  users:'is_users_v1',
+  classes:'is_classes_v1',
+  grades:'is_grades_v1',
+  drafts:'is_drafts_v1'
+};
+
+function load(name){ try { return JSON.parse(localStorage.getItem(name) || 'null') } catch(e){ return null } }
+function save(name,val){ localStorage.setItem(name, JSON.stringify(val)) }
+
+function ensureDefaults(){
+  if(!load(LS_KEYS.users)){
+    const users = [];
+    // Add ADMIN account
+    users.push({ id: generateId(), username:'ADMIN', password:'ADMIN', role:'admin', fullname:'Administrator' });
+    save(LS_KEYS.users, users);
+  }
+  if(!load(LS_KEYS.classes)) save(LS_KEYS.classes, []);
+  if(!load(LS_KEYS.grades)) save(LS_KEYS.grades, []);
+  if(!load(LS_KEYS.drafts)) save(LS_KEYS.drafts, {});
+}
+
+// UTIL
+function generateId(prefix='id'){ return prefix + '_' + Math.random().toString(36).slice(2,9) }
+function byId(arr,id){ return (arr||[]).find(x=>x.id===id) }
+function byUsername(arr,un){ return (arr||[]).find(x=>x.username === un) }
+
+// ----- LOGIN / BOOT -----
+ensureDefaults();
+
+const loginUsername = document.getElementById('login-username');
+const loginPassword = document.getElementById('login-password');
+const btnLogin = document.getElementById('btn-login');
+const btnDemo = document.getElementById('btn-demo');
+const btnResetLocal = document.getElementById('btn-reset-local');
+const loginMessage = document.getElementById('login-message');
+
+btnLogin.addEventListener('click', ()=>attemptLogin());
+loginPassword.addEventListener('keypress', (e)=>{ if(e.key==='Enter') attemptLogin(); });
+btnDemo.addEventListener('click', ()=>createDemo());
+btnResetLocal.addEventListener('click', ()=>{ if(confirm('Ali res želite izbrisati vse podatke?')){ localStorage.clear(); ensureDefaults(); location.reload(); } });
+
+function attemptLogin(){
+  const users = load(LS_KEYS.users) || [];
+  const u = byUsername(users, loginUsername.value.trim());
+  if(!u || u.password !== loginPassword.value){
+    loginMessage.textContent = 'Prijava zavrnjena — napačno uporabniško ime ali geslo.';
+    return;
+  }
+  loginMessage.textContent = '';
+  openApp(u);
+}
+
+// Demo data
+function createDemo(){
+  // creates one teacher, two students, one class
+  const users = load(LS_KEYS.users) || [];
+  // add teacher
+  const t = { id: generateId(), username:'ucitelj1', password:'ucitelj1', role:'teacher', fullname:'Maja Novak' };
+  const s1 = { id: generateId(), username:'ucenec1', password:'ucenec1', role:'student', fullname:'Ana Kranjc' };
+  const s2 = { id: generateId(), username:'ucenec2', password:'ucenec2', role:'student', fullname:'Bine Horvat' };
+  users.push(t, s1, s2);
+  save(LS_KEYS.users, users);
+
+  const cl = load(LS_KEYS.classes) || [];
+  const classA = { id: generateId('raz'), name:'7.A', teacherId: t.id, studentIds: [s1.id, s2.id] };
+  cl.push(classA);
+  save(LS_KEYS.classes, cl);
+
+  alert('Demo podatki so ustvarjeni. Uporabniški računi: ADMIN/ADMIN, ucitelj1/ucitelj1, ucenec1/ucenec1, ucenec2/ucenec2');
+}
+
+// ----- APP UI -----
+const appScreen = document.getElementById('app-screen');
+const loginScreen = document.getElementById('login-screen');
+const appUserSpan = document.getElementById('app-user');
+const appRoleSpan = document.getElementById('app-role');
+const btnLogout = document.getElementById('btn-logout');
+
+btnLogout.addEventListener('click', ()=>{ currentUser=null; renderLogin(); });
+
+let currentUser = null;
+
+function openApp(user){
+  currentUser = user;
+  loginScreen.style.display='none';
+  appScreen.style.display='block';
+  appUserSpan.textContent = `${user.fullname} (${user.username})`;
+  appRoleSpan.textContent = user.role.toUpperCase();
+  renderByRole();
+}
+
+function renderLogin(){
+  currentUser = null;
+  appScreen.style.display='none';
+  loginScreen.style.display='block';
+  loginUsername.value=''; loginPassword.value='';
+  loginMessage.textContent='';
+}
+
+// Render per role
+function renderByRole(){
+  document.getElementById('admin-area').style.display='none';
+  document.getElementById('teacher-area').style.display='none';
+  document.getElementById('student-area').style.display='none';
+
+  if(currentUser.role === 'admin') renderAdmin();
+  if(currentUser.role === 'teacher') renderTeacher();
+  if(currentUser.role === 'student') renderStudent();
+}
+
+/* ================= ADMIN ================= */
+const adminNav = document.getElementById('admin-nav');
+const adminContent = document.getElementById('admin-content');
+
+function renderAdmin(){
+  document.getElementById('admin-area').style.display='block';
+  adminNav.innerHTML='';
+  ['UČITELJI','UČENCI','RAZREDI','PRIJAVNI PODATKI'].forEach(tab=>{
+    const b = document.createElement('button');
+    b.textContent = tab;
+    b.className='tab-btn';
+    b.addEventListener('click', ()=>adminOpen(tab));
+    adminNav.appendChild(b);
+  });
+  adminOpen('UČITELJI');
+}
+
+function adminOpen(tab){
+  adminContent.innerHTML='';
+  if(tab==='UČITELJI') adminTeachersUI();
+  if(tab==='UČENCI') adminStudentsUI();
+  if(tab==='RAZREDI') adminClassesUI();
+  if(tab==='PRIJAVNI PODATKI') adminLoginDataUI();
+}
+
+/* ---- Admin: učitelji ---- */
+function adminTeachersUI(){
+  const users = load(LS_KEYS.users) || [];
+  const teachers = users.filter(u=>u.role==='teacher');
+
+  const container = document.createElement('div');
+  container.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+    <h3>Učitelji</h3>
+    <button id="add-teacher" class="small-btn">Dodaj učitelja</button>
+  </div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Ime in priimek</th><th>Uporabniško ime</th><th>Geslo</th><th>Razred(a)</th><th>Akcije</th></tr></thead><tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+
+  teachers.forEach(t=>{
+    const tr = document.createElement('tr');
+    const classes = (load(LS_KEYS.classes)||[]).filter(c=>c.teacherId===t.id).map(c=>c.name).join(', ');
+    tr.innerHTML = `<td>${t.fullname}</td>
+      <td>${t.username}</td>
+      <td><input data-id="${t.id}" class="pw-input" value="${t.password}"></td>
+      <td><input data-id="${t.id}" class="teach-classes" placeholder="${classes || '—'}"></td>
+      <td class="row-actions"></td>`;
+    tbody.appendChild(tr);
+    const actionsTd = tr.querySelector('.row-actions');
+    const btnSave = document.createElement('button'); btnSave.textContent='Shrani'; btnSave.className='small-btn';
+    btnSave.addEventListener('click', ()=>{ // save password & fullname optional
+      const newPw = tr.querySelector('.pw-input').value.trim();
+      const username = t.username;
+      updateUserPassword(t.id, newPw);
+      alert('Geslo posodobljeno.');
+      renderAdmin();
+    });
+    const btnDelete = document.createElement('button'); btnDelete.textContent='Izbriši'; btnDelete.className='small-btn danger';
+    btnDelete.addEventListener('click', ()=>{ if(confirm('Izbrišem tega učitelja?')){ deleteUser(t.id); renderAdmin(); }});
+    actionsTd.appendChild(btnSave); actionsTd.appendChild(btnDelete);
+  });
+
+  container.appendChild(table);
+  adminContent.appendChild(container);
+
+  // Add teacher form
+  document.getElementById('add-teacher').addEventListener('click', ()=>{
+    const name = prompt('Ime in priimek učitelja:');
+    if(!name) return;
+    const username = prompt('Uporabniško ime (unique):');
+    if(!username) return;
+    const pw = prompt('Geslo:');
+    const users = load(LS_KEYS.users) || [];
+    if(byUsername(users, username)){ alert('Uporabniško ime že obstaja'); return; }
+    users.push({ id: generateId(), username, password: pw||'', role:'teacher', fullname:name });
+    save(LS_KEYS.users, users);
+    renderAdmin();
+  });
+}
+
+/* ---- Admin: učenci ---- */
+function adminStudentsUI(){
+  const users = load(LS_KEYS.users) || [];
+  const students = users.filter(u=>u.role==='student');
+
+  const container = document.createElement('div');
+  container.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+    <h3>Učenci</h3>
+    <button id="add-student" class="small-btn">Dodaj učenca</button>
+  </div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Ime in priimek</th><th>Uporabniško ime</th><th>Geslo</th><th>Akcije</th></tr></thead><tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+
+  students.forEach(s=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.fullname}</td>
+      <td>${s.username}</td>
+      <td><input data-id="${s.id}" class="pw-input-st" value="${s.password}"></td>
+      <td class="row-actions"></td>`;
+    tbody.appendChild(tr);
+    const actionsTd = tr.querySelector('.row-actions');
+    const btnSave = document.createElement('button'); btnSave.textContent='Shrani'; btnSave.className='small-btn';
+    btnSave.addEventListener('click', ()=>{ const newPw = tr.querySelector('.pw-input-st').value.trim(); updateUserPassword(s.id, newPw); alert('Geslo posodobljeno.'); renderAdmin(); });
+    const btnDelete = document.createElement('button'); btnDelete.textContent='Izbriši'; btnDelete.className='small-btn danger';
+    btnDelete.addEventListener('click', ()=>{ if(confirm('Izbrišem tega učenca?')){ deleteUser(s.id); renderAdmin(); }});
+    actionsTd.appendChild(btnSave); actionsTd.appendChild(btnDelete);
+  });
+
+  container.appendChild(table);
+  adminContent.appendChild(container);
+
+  document.getElementById('add-student').addEventListener('click', ()=>{
+    const name = prompt('Ime in priimek učenca:');
+    if(!name) return;
+    const username = prompt('Uporabniško ime (unique):');
+    if(!username) return;
+    const pw = prompt('Geslo:');
+    const users = load(LS_KEYS.users) || [];
+    if(byUsername(users, username)){ alert('Uporabniško ime že obstaja'); return; }
+    users.push({ id: generateId(), username, password: pw||'', role:'student', fullname:name });
+    save(LS_KEYS.users, users);
+    renderAdmin();
+  });
+}
+
+/* ---- Admin: razredi ---- */
+function adminClassesUI(){
+  const classes = load(LS_KEYS.classes) || [];
+  const users = load(LS_KEYS.users) || [];
+  const students = users.filter(u=>u.role==='student');
+  const teachers = users.filter(u=>u.role==='teacher');
+
+  const container = document.createElement('div');
+  container.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+    <h3>Razredi</h3>
+    <div>
+      <button id="add-class" class="small-btn">Dodaj razred</button>
+    </div>
+  </div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Ime razreda</th><th>Učitelj</th><th>Učenci</th><th>Akcije</th></tr></thead><tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+
+  classes.forEach(c=>{
+    const tr = document.createElement('tr');
+    const teacher = byId(users, c.teacherId);
+    const studentNames = (c.studentIds||[]).map(id=>byId(users,id)?.fullname || '—').join(', ');
+    tr.innerHTML = `<td>${c.name}</td><td>${teacher?teacher.fullname:'—'}</td><td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${studentNames}</td><td class="row-actions"></td>`;
+    tbody.appendChild(tr);
+    const actionsTd = tr.querySelector('.row-actions');
+    const btnEdit = document.createElement('button'); btnEdit.textContent='Uredi'; btnEdit.className='small-btn';
+    btnEdit.addEventListener('click', ()=>editClass(c.id));
+    const btnDelete = document.createElement('button'); btnDelete.textContent='Izbriši'; btnDelete.className='small-btn danger';
+    btnDelete.addEventListener('click', ()=>{ if(confirm('Izbrišem razred?')){ deleteClass(c.id); renderAdmin(); }});
+    actionsTd.appendChild(btnEdit); actionsTd.appendChild(btnDelete);
+  });
+
+  container.appendChild(table);
+  adminContent.appendChild(container);
+
+  document.getElementById('add-class').addEventListener('click', ()=>{
+    const name = prompt('Ime razreda (npr. 7.A):');
+    if(!name) return;
+    // pick teacher
+    const tlist = teachers.map((t,i)=>`${i+1}. ${t.fullname} (${t.username})`).join('\n');
+    let tchoice = prompt('Izberi učitelja za razred (vnesi številko) ali pusti prazno:\n'+tlist);
+    let teacherId = null;
+    if(tchoice){ const t = teachers[parseInt(tchoice)-1]; if(t) teacherId=t.id; }
+    // select students
+    let chosen = [];
+    let chooseMore = true;
+    while(chooseMore){
+      const slist = students.map((s,i)=>`${i+1}. ${s.fullname} (${s.username})`).join('\n');
+      let pick = prompt('Dodaj učenca v razred (vnesi številko) ali pusti prazno za konec:\n'+slist);
+      if(!pick) break;
+      const s = students[parseInt(pick)-1];
+      if(s && !chosen.includes(s.id)) chosen.push(s.id);
+    }
+    const classes = load(LS_KEYS.classes) || [];
+    classes.push({ id: generateId('raz'), name, teacherId, studentIds: chosen });
+    save(LS_KEYS.classes, classes);
+    renderAdmin();
+  });
+
+  function editClass(cid){
+    const classes = load(LS_KEYS.classes) || [];
+    const c = byId(classes, cid);
+    if(!c) return;
+    const newName = prompt('Ime razreda:', c.name) || c.name;
+    // teacher
+    const tlist = teachers.map((t,i)=>`${i+1}. ${t.fullname} (${t.username})`).join('\n');
+    let tchoice = prompt('Izberi učitelja za razred (vnesi številko) ali pusti prazno za ohranitev:\n'+tlist);
+    if(tchoice){ const t = teachers[parseInt(tchoice)-1]; if(t) c.teacherId = t.id; }
+    // students: simple remove/add loop
+    let cont = true;
+    while(cont){
+      const sAction = prompt('U: dodaj učenca, R: odstrani učenca, K: konec (vpiši črko)').toUpperCase();
+      if(sAction==='K') break;
+      if(sAction==='U'){
+        const slist = students.map((s,i)=>`${i+1}. ${s.fullname} (${s.username})`).join('\n');
+        let pick = prompt('Dodaj (številka):\n'+slist);
+        const s = students[parseInt(pick)-1];
+        if(s && !c.studentIds.includes(s.id)) c.studentIds.push(s.id);
+      } else if(sAction==='R'){
+        const cur = c.studentIds.map((id,i)=>`${i+1}. ${byId(users,id)?.fullname || '—'}`).join('\n');
+        if(!cur) { alert('Ni učencev v razredu'); break; }
+        let pick = prompt('Odstrani (številka):\n'+cur);
+        const idx = parseInt(pick)-1;
+        if(!isNaN(idx)) c.studentIds.splice(idx,1);
+      }
+    }
+    c.name = newName;
+    save(LS_KEYS.classes, classes);
+    renderAdmin();
+  }
+}
+
+/* ---- Admin: prijavni podatki (pregled + PDF izvoz) ---- */
+function adminLoginDataUI(){
+  const users = load(LS_KEYS.users) || [];
+
+  const container = document.createElement('div');
+  container.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+    <h3>Prijavni podatki</h3>
+    <div><button id="btn-export-all" class="small-btn">Natisni vse kot PDF</button></div>
+  </div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Vloga</th><th>Ime</th><th>Uporabniško ime</th><th>Geslo</th><th>Akcije</th></tr></thead><tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+
+  users.forEach(u=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${u.role}</td><td>${u.fullname}</td><td>${u.username}</td><td>${u.password}</td><td></td>`;
+    const act = tr.querySelector('td:last-child');
+    const btnUserPdf = document.createElement('button'); btnUserPdf.textContent='PDF'; btnUserPdf.className='small-btn';
+    btnUserPdf.addEventListener('click', ()=>exportUserPdf(u.id));
+    act.appendChild(btnUserPdf);
+    tbody.appendChild(tr);
+  });
+
+  container.appendChild(table);
+  adminContent.appendChild(container);
+
+  document.getElementById('btn-export-all').addEventListener('click', ()=>exportAllPdf());
+}
+
+function exportUserPdf(userId){
+  const users = load(LS_KEYS.users) || [];
+  const u = byId(users, userId);
+  if(!u) return alert('Uporabnik ne obstaja');
+  const html = `<h2>Prijavni podatki</h2>
+    <p><strong>Ime:</strong> ${u.fullname}</p>
+    <p><strong>Vloga:</strong> ${u.role}</p>
+    <p><strong>Uporabniško ime:</strong> ${u.username}</p>
+    <p><strong>Geslo:</strong> ${u.password}</p>`;
+  openPrintWindow(html, `prijavni_${u.username}.pdf`);
+}
+function exportAllPdf(){
+  const users = load(LS_KEYS.users) || [];
+  let html = `<h2>Vsi prijavni podatki</h2><table border="1" cellpadding="6" cellspacing="0"><tr><th>Vloga</th><th>Ime</th><th>Uporabniško ime</th><th>Geslo</th></tr>`;
+  users.forEach(u=> html+=`<tr><td>${u.role}</td><td>${u.fullname}</td><td>${u.username}</td><td>${u.password}</td></tr>`);
+  html += '</table>';
+  openPrintWindow(html, 'prijavni_vsi.pdf');
+}
+function openPrintWindow(html, name){
+  const win = window.open('', '_blank', 'width=700,height=800');
+  win.document.write(`<html><head><title>${name}</title></head><body>${html}</body></html>`);
+  win.document.close();
+  // instrukcija uporabniku: natisni/shrani kot pdf
+  setTimeout(()=>{ win.focus(); if(confirm('Odpre se okno za tisk. Želite takoj natisniti/shraniti kot PDF? (kliknite OK za tisk)')) win.print(); }, 300);
+}
+
+/* ======= COMMON ADMIN HELPERS ======= */
+function updateUserPassword(userId, newPassword){
+  const users = load(LS_KEYS.users) || [];
+  const u = byId(users, userId);
+  if(!u) return;
+  u.password = newPassword;
+  save(LS_KEYS.users, users);
+  // if current user changed own password, reflect
+  if(currentUser && currentUser.id === u.id){ currentUser.password = newPassword; appUserSpan.textContent = `${u.fullname} (${u.username})`;}
+}
+
+function deleteUser(userId){
+  let users = load(LS_KEYS.users) || [];
+  users = users.filter(u=>u.id !== userId);
+  save(LS_KEYS.users, users);
+  // also remove from classes and grades
+  let classes = load(LS_KEYS.classes) || [];
+  classes.forEach(c=> c.studentIds = (c.studentIds||[]).filter(id => id !== userId));
+  save(LS_KEYS.classes, classes);
+  let grades = load(LS_KEYS.grades) || [];
+  grades = grades.filter(g => g.studentId !== userId && g.teacherId !== userId);
+  save(LS_KEYS.grades, grades);
+}
+
+function deleteClass(classId){
+  let classes = load(LS_KEYS.classes) || [];
+  classes = classes.filter(c=>c.id !== classId);
+  save(LS_KEYS.classes, classes);
+  // remove drafts & related grades? keep grades (specifically said grades persist even if draft reset)
+}
+
+/* ================= TEACHER ================= */
+const teacherNav = document.getElementById('teacher-nav');
+const teacherContent = document.getElementById('teacher-content');
+
+function renderTeacher(){
+  document.getElementById('teacher-area').style.display='block';
+  teacherNav.innerHTML='';
+  ['VPIŠI OCENJEVANJE', 'OCENE', 'UREDI OCENE', 'SPREMENI GESLO'].forEach(tab=>{
+    const b = document.createElement('button');
+    b.textContent = tab;
+    b.className='tab-btn';
+    b.addEventListener('click', ()=>teacherOpen(tab));
+    teacherNav.appendChild(b);
+  });
+  teacherOpen('VPIŠI OCENJEVANJE');
+}
+
+function teacherOpen(tab){
+  teacherContent.innerHTML='';
+  if(tab==='VPIŠI OCENJEVANJE') teacherEnterAssessmentUI();
+  if(tab==='OCENE') teacherViewGradesUI();
+  if(tab==='UREDI OCENE') teacherEditGradesUI();
+  if(tab==='SPREMENI GESLO') changePasswordUI();
+}
+
+/* ---- Helper: find teacher's class (first one) ---- */
+function getTeacherClasses(tId){
+  return (load(LS_KEYS.classes)||[]).filter(c=>c.teacherId === tId);
+}
+
+/* ---- Vpiši ocenjevanje ---- */
+function teacherEnterAssessmentUI(){
+  const classes = getTeacherClasses(currentUser.id);
+  const container = document.createElement('div');
+  container.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
+    <h3>Vpiši ocenjevanje</h3>
+    <div class="small muted">Izberi razred, vnesi % in oceno ob strani in pritisni "Shrani & Pošlji učencu".</div>
+  </div>`;
+  const select = document.createElement('select');
+  select.innerHTML = classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('') || '<option value="">(ni razreda)</option>';
+  container.appendChild(select);
+
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Učenec</th><th>Procenti</th><th>Ocena</th></tr></thead><tbody></tbody>`;
+  container.appendChild(table);
+  const tbody = table.querySelector('tbody');
+
+  const btns = document.createElement('div'); btns.style.marginTop='10px';
+  const btnSaveSend = document.createElement('button'); btnSaveSend.textContent='Shrani in POŠLJI učencu'; btnSaveSend.className='success';
+  const btnReset = document.createElement('button'); btnReset.textContent='PONASTAVI osnutek'; btnReset.className='small-btn';
+  btns.appendChild(btnSaveSend); btns.appendChild(btnReset);
+  container.appendChild(btns);
+
+  teacherContent.appendChild(container);
+
+  function redraw(){
+    tbody.innerHTML='';
+    const cid = select.value;
+    if(!cid) return;
+    const classesAll = load(LS_KEYS.classes) || [];
+    const cl = byId(classesAll, cid);
+    const users = load(LS_KEYS.users) || [];
+    const draftAll = load(LS_KEYS.drafts) || {};
+    const draft = (draftAll[cid] || {});
+    (cl.studentIds || []).forEach(sid=>{
+      const s = byId(users, sid);
+      const row = document.createElement('tr');
+      const percentVal = draft[sid]?.percent ?? '';
+      const gradeVal = draft[sid]?.grade ?? '';
+      row.innerHTML = `<td>${s?.fullname || '—'}</td>
+        <td><input data-sid="${sid}" class="in-percent" value="${percentVal}"></td>
+        <td><input data-sid="${sid}" class="in-grade" value="${gradeVal}"></td>`;
+      tbody.appendChild(row);
+    });
+  }
+
+  select.addEventListener('change', redraw);
+  redraw();
+
+  btnSaveSend.addEventListener('click', ()=>{
+    const cid = select.value;
+    if(!cid) return alert('Izberite razred');
+    // collect inputs
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const draftAll = load(LS_KEYS.drafts) || {};
+    draftAll[cid] = draftAll[cid] || {};
+    rows.forEach(tr=>{
+      const sid = tr.querySelector('.in-percent').dataset.sid;
+      const p = tr.querySelector('.in-percent').value.trim();
+      const g = tr.querySelector('.in-grade').value.trim();
+      if(p === '' && g === '') {
+        // do not create draft entry
+        if(draftAll[cid][sid]) delete draftAll[cid][sid];
+      } else {
+        draftAll[cid][sid] = { percent: p, grade: g };
+      }
+      // Save into grades permanently (pošlji učencu) — vsak vnos naredi posamezno oceno (spec: ob pošiljanju se ocena zapiše kot številka)
+      if(g !== '' || p !== ''){
+        const grades = load(LS_KEYS.grades) || [];
+        grades.push({
+          id: generateId('grade'),
+          studentId: sid,
+          teacherId: currentUser.id,
+          classId: cid,
+          gradeNumber: g || null,
+          percent: p || null,
+          note: '',
+          date: new Date().toISOString()
+        });
+        save(LS_KEYS.grades, grades);
+      }
+    });
+    save(LS_KEYS.drafts, draftAll);
+    alert('Ocene so shranjene in poslano učencem (zapis v seznam ocen).');
+    redraw();
+  });
+
+  btnReset.addEventListener('click', ()=>{
+    const cid = select.value;
+    if(!cid) return;
+    if(!confirm('Res ponastaviti osnutek ocenjevanja za ta razred? (To ne izbriše že poslanih ocen.)')) return;
+    const drafts = load(LS_KEYS.drafts) || {};
+    if(drafts[cid]) delete drafts[cid];
+    save(LS_KEYS.drafts, drafts);
+    alert('Osnutek ponastavljen.');
+    redraw();
+  });
+}
+
+/* ---- OCENE (podatki o poslanih ocenah) ---- */
+function teacherViewGradesUI(){
+  const classes = getTeacherClasses(currentUser.id);
+  const container = document.createElement('div');
+  container.innerHTML = `<h3>Ocene</h3><div class="small muted">Seznam vseh poslanih ocen (številske vrednosti) za razrede, ki jih poučujete.</div>`;
+
+  const select = document.createElement('select');
+  select.innerHTML = '<option value="">Vsi razredi</option>' + classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  container.appendChild(select);
+
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Učenec</th><th>Razred</th><th>Ocena</th><th>Procenti</th><th>Datum</th></tr></thead><tbody></tbody>`;
+  container.appendChild(table);
+  teacherContent.appendChild(container);
+
+  function redraw(){
+    const tbody = table.querySelector('tbody'); tbody.innerHTML='';
+    const gid = select.value;
+    const grades = load(LS_KEYS.grades) || [];
+    const users = load(LS_KEYS.users) || [];
+    const classesAll = load(LS_KEYS.classes) || [];
+    const filtered = grades.filter(g => g.teacherId === currentUser.id && (gid ? g.classId === gid : true));
+    filtered.forEach(g=>{
+      const s = byId(users, g.studentId) || {};
+      const c = byId(classesAll, g.classId) || {};
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.fullname || '—'}</td><td>${c.name || '—'}</td><td>${g.gradeNumber ?? '—'}</td><td>${g.percent ?? '—'}</td><td>${(new Date(g.date)).toLocaleString()}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  select.addEventListener('change', redraw);
+  redraw();
+}
+
+/* ---- UREDI OCENE ---- */
+function teacherEditGradesUI(){
+  const container = document.createElement('div');
+  container.innerHTML = `<h3>Uredi ocene</h3><div class="small muted">Tukaj lahko dodate, uredite ali izbrišete ocene.</div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Učenec</th><th>Razred</th><th>Ocena</th><th>Procenti</th><th>Datum</th><th>Akcije</th></tr></thead><tbody></tbody>`;
+  container.appendChild(table);
+  teacherContent.appendChild(container);
+
+  function redraw(){
+    const tbody = table.querySelector('tbody'); tbody.innerHTML='';
+    const grades = load(LS_KEYS.grades) || [];
+    const users = load(LS_KEYS.users) || [];
+    const classesAll = load(LS_KEYS.classes) || [];
+    const myGrades = grades.filter(g => g.teacherId === currentUser.id);
+    myGrades.forEach(g=>{
+      const s = byId(users, g.studentId) || {};
+      const c = byId(classesAll, g.classId) || {};
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.fullname || '—'}</td><td>${c.name||'—'}</td><td><input class="g-val" data-id="${g.id}" value="${g.gradeNumber || ''}"></td><td><input class="g-per" data-id="${g.id}" value="${g.percent || ''}"></td><td>${(new Date(g.date)).toLocaleString()}</td><td></td>`;
+      const act = tr.querySelector('td:last-child');
+      const btnSave = document.createElement('button'); btnSave.textContent='Shrani'; btnSave.className='small-btn';
+      btnSave.addEventListener('click', ()=>{
+        const grades = load(LS_KEYS.grades) || [];
+        const item = grades.find(x=>x.id===g.id);
+        item.gradeNumber = tr.querySelector('.g-val').value.trim();
+        item.percent = tr.querySelector('.g-per').value.trim();
+        save(LS_KEYS.grades, grades);
+        alert('Posodobljeno.');
+        redraw();
+      });
+      const btnDelete = document.createElement('button'); btnDelete.textContent='Izbriši'; btnDelete.className='small-btn danger';
+      btnDelete.addEventListener('click', ()=>{
+        if(!confirm('Izbrišem to oceno?')) return;
+        let grades = load(LS_KEYS.grades) || [];
+        grades = grades.filter(x=>x.id !== g.id);
+        save(LS_KEYS.grades, grades);
+        redraw();
+      });
+      act.appendChild(btnSave); act.appendChild(btnDelete);
+      tbody.appendChild(tr);
+    });
+
+    // Add new grade button
+    const addRow = document.createElement('div'); addRow.style.marginTop='10px';
+    addRow.innerHTML = `<button id="btn-add-grade" class="small-btn">Dodaj novo oceno</button>`;
+    container.appendChild(addRow);
+    const btnAdd = document.getElementById('btn-add-grade');
+    btnAdd.addEventListener('click', ()=>{
+      addNewGradeForm();
+    });
+  }
+
+  function addNewGradeForm(){
+    const users = load(LS_KEYS.users) || [];
+    const classesAll = load(LS_KEYS.classes) || [];
+    const teacherClasses = classesAll.filter(c=>c.teacherId === currentUser.id);
+    const sList = users.filter(u=>u.role==='student').map((s,i)=>`${i+1}. ${s.fullname} (${s.username})`).join('\n');
+    const pickS = prompt('Izberi učenca (številka):\n'+sList);
+    const s = users.filter(u=>u.role==='student')[parseInt(pickS)-1];
+    if(!s) return alert('Ni izbran učenec');
+    const cList = teacherClasses.map((c,i)=>`${i+1}. ${c.name}`).join('\n');
+    const pickC = prompt('Izberi razred tega učenca (številka):\n'+cList);
+    const c = teacherClasses[parseInt(pickC)-1];
+    if(!c) return alert('Izbran razred ni veljaven');
+    const grade = prompt('Vnesi oceno (npr. 5):');
+    const percent = prompt('Procenti (npr. 87):');
+    const grades = load(LS_KEYS.grades) || [];
+    grades.push({ id: generateId('grade'), studentId: s.id, teacherId: currentUser.id, classId: c.id, gradeNumber: grade, percent, note:'', date: new Date().toISOString() });
+    save(LS_KEYS.grades, grades);
+    alert('Dodano.');
+    teacherOpen('UREDI OCENE'); // refresh
+  }
+
+  teacherContent.appendChild(container);
+  // initial draw
+  setTimeout(()=>teacherOpen('UREDI OCENE'),10);
+}
+
+/* ---- SPREMENI GESLO (za učitelje in učence) ---- */
+function changePasswordUI(){
+  const container = document.createElement('div');
+  container.innerHTML = `<h3>Spremeni geslo</h3>
+    <label>Trenutno geslo<input id="cur-pw" type="password"></label>
+    <label>Novo geslo<input id="new-pw" type="password"></label>
+    <label>Potrditev gesla<input id="new-pw2" type="password"></label>
+    <div style="margin-top:8px"><button id="btn-change-pw">Spremeni geslo</button></div>
+    <div class="small muted" style="margin-top:8px">Če spremenite geslo, začne veljati takoj.</div>`;
+  teacherContent.appendChild(container);
+  document.getElementById('btn-change-pw').addEventListener('click', ()=>{
+    const cur = document.getElementById('cur-pw').value;
+    const n1 = document.getElementById('new-pw').value;
+    const n2 = document.getElementById('new-pw2').value;
+    if(cur !== currentUser.password) return alert('Trenutno geslo ni pravilno');
+    if(!n1 || n1 !== n2) return alert('Nova gesla se ne ujemata ali so prazna');
+    updateUserPassword(currentUser.id, n1);
+    // update local currentUser password
+    currentUser.password = n1;
+    alert('Geslo spremenjeno.');
+  });
+}
+
+/* ================= STUDENT ================= */
+const studentNav = document.getElementById('student-nav');
+const studentContent = document.getElementById('student-content');
+
+function renderStudent(){
+  document.getElementById('student-area').style.display='block';
+  studentNav.innerHTML='';
+  ['OCENJEVANJE','OCENE','SPREMENI GESLO'].forEach(tab=>{
+    const b = document.createElement('button');
+    b.textContent = tab;
+    b.className='tab-btn';
+    b.addEventListener('click', ()=>studentOpen(tab));
+    studentNav.appendChild(b);
+  });
+  studentOpen('OCENJEVANJE');
+}
+
+function studentOpen(tab){
+  studentContent.innerHTML='';
+  if(tab==='OCENJEVANJE') studentViewAssessmentUI();
+  if(tab==='OCENE') studentViewAllGradesUI();
+  if(tab==='SPREMENI GESLO') studentChangePasswordUI();
+}
+
+/* ---- STUDENT: OCENJEVANJE (prikaz osnutka za samega sebe) ---- */
+function studentViewAssessmentUI(){
+  const container = document.createElement('div');
+  container.innerHTML = `<h3>Ocenjevanje (tvoje trenutno ocenjevanje)</h3>
+    <div class="small muted">Prikaz trenutnih podatkov iz osnutka učitelja (če učitelj ponastavi, so prazni)</div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Razred</th><th>Procenti</th><th>Ocena</th></tr></thead><tbody></tbody>`;
+  container.appendChild(table);
+  studentContent.appendChild(container);
+
+  function redraw(){
+    const tbody = table.querySelector('tbody'); tbody.innerHTML='';
+    const classes = load(LS_KEYS.classes) || [];
+    const drafts = load(LS_KEYS.drafts) || {};
+    const myClasses = classes.filter(c => (c.studentIds||[]).includes(currentUser.id));
+    myClasses.forEach(c=>{
+      const draft = drafts[c.id] || {};
+      const entry = draft[currentUser.id];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${c.name}</td><td>${entry?.percent || ''}</td><td>${entry?.grade || ''}</td>`;
+      tbody.appendChild(tr);
+    });
+    if(myClasses.length===0){
+      const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="3" class="small muted">Zaenkrat nimaš razreda ali podatkov v osnutku.</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+  redraw();
+}
+
+/* ---- STUDENT: OCENE (vse svoje ocene) ---- */
+function studentViewAllGradesUI(){
+  const container = document.createElement('div');
+  container.innerHTML = `<h3>Moje ocene</h3><div class="small muted">Seznam vseh tvojih poslanih ocen.</div>`;
+  const table = document.createElement('table');
+  table.innerHTML = `<thead><tr><th>Razred</th><th>Učitelj</th><th>Ocena</th><th>Procenti</th><th>Datum</th></tr></thead><tbody></tbody>`;
+  container.appendChild(table);
+  studentContent.appendChild(container);
+
+  const grades = load(LS_KEYS.grades) || [];
+  const users = load(LS_KEYS.users) || [];
+  const classesAll = load(LS_KEYS.classes) || [];
+  const my = grades.filter(g => g.studentId === currentUser.id);
+  const tbody = table.querySelector('tbody');
+  my.forEach(g=>{
+    const t = byId(users, g.teacherId) || {};
+    const c = byId(classesAll, g.classId) || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.name||'—'}</td><td>${t.fullname||'—'}</td><td>${g.gradeNumber||'—'}</td><td>${g.percent||'—'}</td><td>${(new Date(g.date)).toLocaleString()}</td>`;
+    tbody.appendChild(tr);
+  });
+  if(my.length===0){
+    const tr = document.createElement('tr'); tr.innerHTML = `<td colspan="5" class="small muted">Nimate še nobene ocene.</td>`; tbody.appendChild(tr);
+  }
+}
+
+/* ---- STUDENT: spremeni geslo ---- */
+function studentChangePasswordUI(){
+  const container = document.createElement('div');
+  container.innerHTML = `<h3>Spremeni geslo</h3>
+    <label>Trenutno geslo<input id="s-cur-pw" type="password"></label>
+    <label>Novo geslo<input id="s-new-pw" type="password"></label>
+    <label>Potrditev gesla<input id="s-new-pw2" type="password"></label>
+    <div style="margin-top:8px"><button id="s-btn-change-pw">Spremeni geslo</button></div>`;
+  studentContent.appendChild(container);
+  document.getElementById('s-btn-change-pw').addEventListener('click', ()=>{
+    const cur = document.getElementById('s-cur-pw').value;
+    const n1 = document.getElementById('s-new-pw').value;
+    const n2 = document.getElementById('s-new-pw2').value;
+    if(cur !== currentUser.password) return alert('Trenutno geslo ni pravilno');
+    if(!n1 || n1 !== n2) return alert('Nova gesla se ne ujemata ali so prazna');
+    updateUserPassword(currentUser.id, n1);
+    currentUser.password = n1;
+    alert('Geslo spremenjeno.');
+  });
+}
+
+/* ===== Initialization ===== */
+renderLogin();
+
+</script>
+</body>
+</html>
